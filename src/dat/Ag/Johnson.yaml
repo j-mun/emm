@@ -1,12 +1,11 @@
 
-
 ---
 NAME: Silver (Ag), Johnson & Christy
 REFERENCES: P. B. Johnson and R. W. Christy, "Optical Constants of the Noble Metals", Phys. Rev. B 1972, 6, 4370
-PARAM: eps
-UNIT: m
 DATA:
   - type: tabulated eps
+    parm: eps
+    unit: m
     data: |
       1.879E-07	-0.324044	2.59368
       1.916E-07	-0.307824	2.7104
