@@ -12,7 +12,7 @@ import yaml
 _path = os.path.abspath(__file__)
 _dir = os.path.dirname(_path)
 _src = os.path.dirname(_dir)
-_dat = _src + '\\dat'
+_dat = _src + '\\_emm_dat'
 
 
 print(_path)
