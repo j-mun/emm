@@ -1,6 +1,4 @@
 """
-
-
 THIS FILE IS PART OF EMM LIBRARY
 """
 
@@ -9,141 +7,14 @@ import sys
 import numpy as np
 import yaml
 
+
 _path = os.path.abspath(__file__)
 _dir = os.path.dirname(_path)
 _src = os.path.dirname(_dir)
-_dat = _src + '\\_emm_dat'
-
-
-print(_path)
-print(_dir)
-print(_dat)
-
-
-
-
-
-
-def avail(
-    name:str=None,
-    dat:str=None
-  )->None:
-  """
-  Args:
-    name: name of the material or project
-    dat: data directory
-  """
-
-  if dat is None:
-    dat = _dat
-  
-  if name is not None:
-    dat += '/' + name
-
-  if name is None:
-    dirs = [d for d in os.listdir(dat) if os.path.isdir(os.path.join(dat, d))]
-    print(dirs)
-    return
-  
-  else:
-    files = [f for f in os.listdir(dat) if os.path.isfile(os.path.join(dat, f))]
-    print(files)
-    return
-
-
-
-def _read(
-    file:str
-  ):
-  """read a raw file
-  
-  Args:
-    file: file name
-
-  Returns:
-    f: frequency
-    re: real part of material property
-    im: imaginary part of material property
-    unit: frequency units
-    parm: material property {'n' or 'e'}
-  """
-  with open(file, 'r') as f:
-    data = yaml.safe_load(f)['DATA'][0]
-    unit = data["unit"]
-    parm = data["parm"]
-    dat = np.fromstring(data['data'], dtype=float, sep=' ').reshape(-1,3)
-    f = dat[:,0]
-    re = dat[:,1]
-    im = dat[:,2]
-
-  return (
-    f,
-    re,
-    im,
-    unit,
-    parm
-  )
-
-
-def read(
-    name:str,
-    unit:str='m',
-    parm:str='n',
-    dat:str=None
-  ):
-  """read a raw data
-  """
-
-  if name is None:
-    raise ValueError('emm::read::material name should be provided!')
-  
-  if dat is None:
-    dat = _dat
-  
-  dat += '\\' + name
-
-  f,re,im,raw_unit,raw_parm = _read(dat)
-
-  # convert frequency units
-  f = _convert_unit(f, f'{raw_unit}->{unit}')
-
-  # convert parameter
-  re,im = _convert_parm(re, im, f'{raw_parm}->{parm}')
-
-  return (
-    f,
-    re+1j*im
-  )
-
-
-
-
-def load(
-    name:str,
-    w:np.ndarray
-  ):
-  """
-  
-  
-  """
-  pass
-
-
-# interp
-
-# warning for out-of-bounds
-
-# export raw data (with unit/param conversion)
-
-
-
-
-
-
-
+_sep = r'/'
+_dat = f'{_src}{_sep}_emm_dat'
 
 from .const import _values as _const
-
 def _convert_unit(
     f:np.ndarray,
     key:str="m->m"
@@ -239,6 +110,154 @@ def _convert_parm(
 
 
 
+def _read(
+    file:str
+  ):
+  """read a raw file
+  
+  Args:
+    file: file name
+
+  Returns:
+    f: frequency
+    re: real part of material property
+    im: imaginary part of material property
+    unit: frequency units
+    parm: material property {'n' or 'e'}
+  """
+  with open(file, 'r') as f:
+    data = yaml.safe_load(f)['DATA'][0]
+    unit = data["unit"]
+    parm = data["parm"]
+    dat = np.fromstring(data['data'], dtype=float, sep=' ').reshape(-1,3)
+    f = dat[:,0]
+    re = dat[:,1]
+    im = dat[:,2]
+
+  return (
+    f,
+    re,
+    im,
+    unit,
+    parm
+  )
 
 
+
+
+
+
+
+
+#==============================================
+def read(
+    name:str,
+    unit:str='m',
+    parm:str='n',
+    dat:str=None,
+    return_complex:bool=True
+  ):
+  """read a raw data
+  """
+
+  if name is None:
+    raise ValueError('emm::read::material name should be provided!')
+  
+  if dat is None:
+    dat = _dat
+  elif not os.path.isdir(dat) or not os.path.exists(dat):
+    raise ValueError('emm::load::data directory does not exist!')
+  dat += _sep + name
+
+  # read raw data
+  f,re,im,raw_unit,raw_parm = _read(dat)
+
+  # convert frequency units
+  f = _convert_unit(f, f'{raw_unit}->{unit}')
+
+  # convert parameter
+  re,im = _convert_parm(re, im, f'{raw_parm}->{parm}')
+
+  if return_complex:
+    return (f,re+1j*im)
+  else:
+    return (f,re,im)
+
+
+#==============================================
+def load(
+    name:str,
+    f:np.ndarray,
+    unit:str='m',
+    parm:str='n',
+    interp:str='linear',
+    extrap:str='constant',
+    dat:str=None,
+    show_warning:bool=True
+  ):
+  """
+  
+  print help if name is None?
+  
+  """
+
+  # read raw data
+  raw_f,raw_re,raw_im = read(name, unit, parm, dat, False)
+
+
+  # interp
+  re = _interp_linear(f, raw_f, raw_re)
+  im = _interp_linear(f, raw_f, raw_im)
+
+  return (f, re+1j*im)
+
+def _interp_linear(f, fi, vi):
+  return np.interp(f, fi, vi)
+
+
+# interp
+
+# warning for out-of-bounds
+
+
+
+
+
+
+
+
+
+
+#==============================================
+def avail(
+    name:str=None,
+    dat:str=None
+  )->None:
+  """
+  Args:
+    name: name of the material or project
+    dat: data directory
+  """
+
+  if dat is None:
+    dat = _dat
+  elif not os.path.isdir(dat) or not os.path.exists(dat):
+    raise ValueError('emm::avail::data directory does not exist!')
+  
+  if name is not None:
+    dat += _sep + name
+  elif not os.path.isdir(dat) or not os.path.exists(dat):
+    raise ValueError('emm::avail::data directory does not exist!')
+
+  if name is None:
+    print('> list of available materials:')
+    dirs = [d for d in os.listdir(dat) if os.path.isdir(os.path.join(dat, d))]
+    print(dirs)
+    return
+  
+  else:
+    print(f'> list of available models for {name}:')
+    files = [f for f in os.listdir(dat) if os.path.isfile(os.path.join(dat, f))]
+    print(files)
+    return
 
