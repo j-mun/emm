@@ -5,29 +5,35 @@ THIS FILE IS PART OF EMM LIBRARY
 import os
 import sys
 import numpy as np
+import scipy
 import yaml
 
 
 _path = os.path.abspath(__file__)
 _dir = os.path.dirname(_path)
 _src = os.path.dirname(_dir)
-_sep = r'/'
-_dat = f'{_src}{_sep}_emm_dat'
+_default_dat = os.path.join(_src, '_emm_dat')
+'''default data directory'''
 
 from .const import _values as _const
-def _convert_unit(
+def convert_unit(
     f:np.ndarray,
-    key:str="m->m"
+    option:str="m->m"
   ):
-  """
-  Hz, GHz, THz, 
-  eV
-  nm, um, m
+  """convert frequency units
 
+  Args:
+    f (np.ndarray): input frequency
+    key (str): conversion option, e.g., 'm->nm' or 'm->THz'
+
+  Returns:
+    f (np.ndarray): converted frequency
+
+  List of units:
+    {m, um, nm, Hz, GHz, THz, eV, cm-1}
   """
-  parts = key.split('->')
-  unit_i = parts[0]
-  unit_j = parts[1]
+  unit_i, unit_j = option.split('->')
+
 
   if unit_i == unit_j:
     return f
@@ -76,17 +82,14 @@ def _convert_unit(
 def _convert_parm(
     re:np.ndarray,
     im:np.ndarray,
-    key:str="n->n"
+    option:str="n->n"
   ):
   """
   Args:
     parm: {'n','nk','e','eps'}
-    key: {'n->n','n->nk','n->e','n->eps', ...}
+    option: {'n->n','n->nk','n->e','n->eps', ...}
   """
-  parts = key.split('->')
-  
-  parm_i = parts[0]
-  parm_j = parts[1]
+  parm_i, parm_j = option.split('->')
 
   if parm_i == 'nk':
     parm_i = 'n'
@@ -109,9 +112,9 @@ def _convert_parm(
     return (np.real(z), np.imag(z))
 
 
-
 def _read(
-    file:str
+    file:str,
+    verbose:bool=True
   ):
   """read a raw file
   
@@ -126,13 +129,17 @@ def _read(
     parm: material property {'n' or 'e'}
   """
   with open(file, 'r') as f:
-    data = yaml.safe_load(f)['DATA'][0]
+    raw = yaml.safe_load(f)
+    data = raw['DATA'][0]
     unit = data["unit"]
     parm = data["parm"]
-    dat = np.fromstring(data['data'], dtype=float, sep=' ').reshape(-1,3)
+    dat = np.fromstring(data['data'].replace(',',' '), dtype=float, sep=' ').reshape(-1,3)
     f = dat[:,0]
     re = dat[:,1]
     im = dat[:,2]
+
+  if verbose:
+    print(f'  importing... {raw['NAME']}')
 
   return (
     f,
@@ -155,7 +162,8 @@ def read(
     unit:str='m',
     parm:str='n',
     dat:str=None,
-    return_complex:bool=True
+    return_complex:bool=True,
+    verbose:bool=True
   ):
   """read a raw data
   """
@@ -164,16 +172,27 @@ def read(
     raise ValueError('emm::read::material name should be provided!')
   
   if dat is None:
-    dat = _dat
+    dat = _default_dat
   elif not os.path.isdir(dat) or not os.path.exists(dat):
-    raise ValueError('emm::load::data directory does not exist!')
-  dat += _sep + name
+    raise ValueError('emm::read::data directory does not exist!')
+
+  # set full file path
+  filepath = os.path.join(dat, name)
+  filename, ext = os.path.splitext(filepath)
+  if ext == '.yml' or ext == '.yaml':
+    filename = filepath
+  elif os.path.isfile(filename+'.yml'):
+    filename += '.yml'
+  elif os.path.isfile(filename+'.yaml'):
+    filename += '.yaml'
+  else:
+    raise ValueError('emm::read::raw file does not exist!')
 
   # read raw data
-  f,re,im,raw_unit,raw_parm = _read(dat)
+  f,re,im,raw_unit,raw_parm = _read(filename, verbose=verbose)
 
   # convert frequency units
-  f = _convert_unit(f, f'{raw_unit}->{unit}')
+  f = convert_unit(f, f'{raw_unit}->{unit}')
 
   # convert parameter
   re,im = _convert_parm(re, im, f'{raw_parm}->{parm}')
@@ -191,38 +210,62 @@ def load(
     unit:str='m',
     parm:str='n',
     interp:str='linear',
-    extrap:str='constant',
+    extrap:str='constant', # extrap?
     dat:str=None,
-    show_warning:bool=True
+    verbose:bool=True
   ):
   """
   
   print help if name is None?
   
   """
+  if verbose:
+    print(
+      '-------------------------------'
+      'emm::load'
+      '-------------------------------'
+    )
 
   # read raw data
-  raw_f,raw_re,raw_im = read(name, unit, parm, dat, False)
+  raw_f,raw_re,raw_im = read(name, unit, parm, dat, False, verbose=verbose)
 
+  # check data range
+  _check_range(f, raw_f)
 
   # interp
-  re = _interp_linear(f, raw_f, raw_re)
-  im = _interp_linear(f, raw_f, raw_im)
+  if interp == 'linear':
+    re = _interp_linear(f, raw_f, raw_re)
+    im = _interp_linear(f, raw_f, raw_im)
+  elif interp == 'cubic':
+    re = _interp_cubic(f, raw_f, raw_re)
+    im = _interp_cubic(f, raw_f, raw_im)
+  else:
+    raise NotImplementedError('emm::load::interpolation method is not implemented!')
 
-  return (f, re+1j*im)
+  if verbose:
+    print('  exporting interpolated data...')
+
+  return re+1j*im
 
 def _interp_linear(f, fi, vi):
   return np.interp(f, fi, vi)
 
+def _interp_cubic(f, fi, vi):
+  return scipy.interpolate.interp1d(fi, vi, kind='cubic', fill_value='extrapolate')(f)
+
 
 # interp
 
-# warning for out-of-bounds
+def _check_range(
+    f:np.ndarray,
+    raw_f:np.ndarray
+  ):
+  if np.min(raw_f) > np.min(f):
+    print('emm::warning::minimum out-of-range!')
 
-
-
-
-
+  if np.max(raw_f) < np.max(f):
+    print('emm::warning::maximum out-of-range!')
+  return None
 
 
 
@@ -240,12 +283,13 @@ def avail(
   """
 
   if dat is None:
-    dat = _dat
+    dat = _default_dat
   elif not os.path.isdir(dat) or not os.path.exists(dat):
     raise ValueError('emm::avail::data directory does not exist!')
   
   if name is not None:
-    dat += _sep + name
+    # dat += _sep + name
+    dat = os.path.join(dat, name)
   elif not os.path.isdir(dat) or not os.path.exists(dat):
     raise ValueError('emm::avail::data directory does not exist!')
 
