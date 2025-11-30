@@ -5,7 +5,7 @@ constant          value                   unit            ref
 c     	| 299 792 458           | [m/s]             | CODATA-18
 eps0  	| 8.854 187 8128 e-12   | [C/V/m = F/m]     | CODATA-18
 mu0   	| 1.256 637 062 12 e-6  | [V/A*s/m = H/m]   | CODATA-18
-eta0    | 376.730 313 668       | [V/A = ¥Ø]         | CODATA-18
+eta0    | 376.730 313 668       | [V/A = Ω]         | CODATA-18
 h       | 6.626 070 15 e-34     | [J/Hz]            | CODATA-18
 hbar  	| 1.054 571 817 e-34    | [J*s]             | CODATA-18
 hbar_eV | 6.582 119 569 e-16    | [eV*s]            |
