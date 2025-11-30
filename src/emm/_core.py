@@ -301,7 +301,9 @@ def avail(
   
   else:
     print(f'> list of available models for {name}:')
-    files = [f for f in os.listdir(dat) if os.path.isfile(os.path.join(dat, f))]
+    files = [
+        os.path.splitext(f)[0] for f in os.listdir(dat) 
+        if os.path.isfile(os.path.join(dat, f)) and f.lower().endswith(('.yml', '.yaml'))
+    ]
     print(files)
     return
-
