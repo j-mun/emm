@@ -139,7 +139,7 @@ def _read(
     im = dat[:,2]
 
   if verbose:
-    print(f'  importing... {raw['NAME']}')
+    print(f'  importing... {raw["NAME"]}')
 
   return (
     f,
